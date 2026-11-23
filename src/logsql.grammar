@@ -42,15 +42,13 @@ orLevel<unit> { OrFilter<unit> | andLevel<unit> }
 
 OrFilter<unit> { andLevel<unit> (logic<or> andLevel<unit>)+ }
 
-// filters that follow each other are joined by an and,
-// written or not.
+// filters that follow each other are joined by an and, written or not
 andLevel<unit> { AndFilter<unit> | notLevel<unit> }
 
 AndFilter<unit> { notLevel<unit> (logic<and>? notLevel<unit>)+ }
 
-// filterStart is an empty token. The tokenizer
-// leaves it out where a filter may not start, such as right after
-// another word.
+// filterStart is an empty token. The tokenizer leaves it out where a
+// filter may not start, such as right after another word.
 notLevel<unit> { filterStart (NotFilter<unit> | unit) }
 
 NotFilter<unit> { (logic<not> | "!" | opMinus) notLevel<unit> }
@@ -134,8 +132,8 @@ rangeOpen { "[" | "(" }
 
 rangeClose { "]" | ")" }
 
-// VictoriaLogs takes a stream filter at the top level and after
-// the _stream field. After any other field it is an error, which this
+// VictoriaLogs takes a stream filter at the top level and after the
+// _stream field. After any other field it is an error, which this
 // grammar does not report.
 StreamFilter { "{" (streamAnd (logic<or> streamAnd)*)? "}" }
 
