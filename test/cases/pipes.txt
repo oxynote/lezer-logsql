@@ -1,0 +1,415 @@
+# block_stats
+
+* | block_stats
+
+==>
+
+Query(MatchAll,BlockStatsPipe(PipeName))
+
+# blocks_count
+
+* | blocks_count as blocks
+
+==>
+
+Query(MatchAll,BlocksCountPipe(PipeName,Keyword,FieldName))
+
+# coalesce
+
+* | coalesce(user, client, ip*) default unknown as who
+
+==>
+
+Query(MatchAll,CoalescePipe(PipeName,FieldList(FieldName,FieldName,FieldName),Keyword,Value,Keyword,FieldName))
+
+# collapse_nums
+
+* | collapse_nums if (level:error) at _msg prettify
+
+==>
+
+Query(MatchAll,CollapseNumsPipe(PipeName,IfClause(Keyword,FieldFilter(FieldName,Phrase)),Keyword,FieldName,Keyword))
+
+# copy
+
+* | copy host as server, ip as client
+
+==>
+
+Query(MatchAll,CopyPipe(PipeName,FieldMapping(FieldName,Keyword,FieldName),FieldMapping(FieldName,Keyword,FieldName)))
+
+# decolorize
+
+* | decolorize _msg
+
+==>
+
+Query(MatchAll,DecolorizePipe(PipeName,FieldName))
+
+# delete
+
+* | delete trace_id, span.*
+
+==>
+
+Query(MatchAll,DeletePipe(PipeName,FieldName,FieldName))
+
+# drop_empty_fields
+
+* | drop_empty_fields
+
+==>
+
+Query(MatchAll,DropEmptyFieldsPipe(PipeName))
+
+# extract
+
+* | extract if (ip:"") "ip=<ip> " from _msg keep_original_fields
+
+==>
+
+Query(MatchAll,ExtractPipe(PipeName,IfClause(Keyword,FieldFilter(FieldName,Phrase(String))),Value(String),Keyword,FieldName,Keyword))
+
+# extract_regexp
+
+* | extract_regexp "(?P<ip>[0-9.]+)" from _msg skip_empty_results
+
+==>
+
+Query(MatchAll,ExtractRegexpPipe(PipeName,Value(String),Keyword,FieldName,Keyword))
+
+# facets
+
+* | facets 5 max_values_per_field 100 max_value_len 20 keep_const_fields
+
+==>
+
+Query(MatchAll,FacetsPipe(PipeName,Number,Keyword,Number,Keyword,Number,Keyword))
+
+# field_names
+
+* | field_names filter foo as name
+
+==>
+
+Query(MatchAll,FieldNamesPipe(PipeName,Keyword,Value,Keyword,FieldName))
+
+# field_values
+
+* | field_values level filter err limit 10
+
+==>
+
+Query(MatchAll,FieldValuesPipe(PipeName,FieldName,Keyword,Value,Limit(Keyword,Number)))
+
+# fields
+
+* | fields _time, _msg, k8s.*
+
+==>
+
+Query(MatchAll,FieldsPipe(PipeName,FieldName,FieldName,FieldName))
+
+# filter
+
+* | filter level:error
+
+==>
+
+Query(MatchAll,FilterPipe(PipeName,FieldFilter(FieldName,Phrase)))
+
+# a filter without the keyword
+
+* | level:error | "timeout" | not debug
+
+==>
+
+Query(MatchAll,FilterPipe(FieldFilter(FieldName,Phrase)),FilterPipe(Phrase(String)),FilterPipe(NotFilter(LogicOperator,Phrase)))
+
+# first and last
+
+* | first 3 by (duration desc) partition by (host) rank as pos | last by (_time)
+
+==>
+
+Query(MatchAll,FirstPipe(PipeName,Number,Keyword,SortFields(SortField(FieldName,Keyword)),Partition(Keyword,Keyword,FieldList(FieldName)),Rank(Keyword,Keyword,FieldName)),LastPipe(PipeName,Keyword,SortFields(SortField(FieldName))))
+
+# format
+
+* | format if (user:*) "<user>@<host>" as who keep_original_fields
+
+==>
+
+Query(MatchAll,FormatPipe(PipeName,IfClause(Keyword,FieldFilter(FieldName,MatchAll)),Value(String),Keyword,FieldName,Keyword))
+
+# generate_sequence
+
+* | generate_sequence 10
+
+==>
+
+Query(MatchAll,GenerateSequencePipe(PipeName,Number))
+
+# hash
+
+* | hash(user) as user_hash
+
+==>
+
+Query(MatchAll,HashPipe(PipeName,FieldName,Keyword,FieldName))
+
+# join with a query
+
+* | join by (user) (_time:1d | stats by (user) count() visits) inner prefix "d."
+
+==>
+
+Query(MatchAll,JoinPipe(PipeName,Keyword,FieldList(FieldName),Subquery(TimeFilter(FieldName,Time),StatsPipe(PipeName,Keyword,ByFields(ByField(FieldName)),StatsEntry(StatsFunction(FunctionName,FieldList),FieldName))),Keyword,Keyword,Value(String)))
+
+# join with rows
+
+* | join on (id) rows({id=1, name=a}, {id: 2, name: b})
+
+==>
+
+Query(MatchAll,JoinPipe(PipeName,Keyword,FieldList(FieldName),Rows(Keyword,Row(RowField(FieldName,Value),RowField(FieldName,Value)),Row(RowField(FieldName,Value),RowField(FieldName,Value)))))
+
+# json_array_concat
+
+* | json_array_concat "," from tags as joined
+
+==>
+
+Query(MatchAll,JsonArrayConcatPipe(PipeName,Value(String),Keyword,FieldName,Keyword,FieldName))
+
+# json_array_len
+
+* | json_array_len(tags) as tags_count
+
+==>
+
+Query(MatchAll,JsonArrayLenPipe(PipeName,FieldName,Keyword,FieldName))
+
+# len
+
+* | len(_msg) as msg_len
+
+==>
+
+Query(MatchAll,LenPipe(PipeName,FieldName,Keyword,FieldName))
+
+# limit and offset
+
+* | offset 100 | limit 10 | head | skip 5
+
+==>
+
+Query(MatchAll,OffsetPipe(PipeName,Number),LimitPipe(PipeName,Number),LimitPipe(PipeName),OffsetPipe(PipeName,Number))
+
+# math
+
+* | math duration / 1000 as seconds, round(bytes / 1024, 0.1) kb
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathBinary(FieldName,Number),Keyword,FieldName),MathEntry(MathFunction(FunctionName,MathBinary(FieldName,Number),Number),FieldName)))
+
+# pack_json and pack_logfmt
+
+* | pack_json fields (a, b*) as packed | pack_logfmt as line
+
+==>
+
+Query(MatchAll,PackJsonPipe(PipeName,Keyword,FieldList(FieldName,FieldName),Keyword,FieldName),PackLogfmtPipe(PipeName,Keyword,FieldName))
+
+# query_stats
+
+* | query_stats
+
+==>
+
+Query(MatchAll,QueryStatsPipe(PipeName))
+
+# rename
+
+* | rename host as server, k8s.* as kube.*
+
+==>
+
+Query(MatchAll,RenamePipe(PipeName,FieldMapping(FieldName,Keyword,FieldName),FieldMapping(FieldName,Keyword,FieldName)))
+
+# replace
+
+* | replace if (user:admin) ("secret", "***") at _msg limit 1
+
+==>
+
+Query(MatchAll,ReplacePipe(PipeName,IfClause(Keyword,FieldFilter(FieldName,Phrase)),Value(String),Value(String),Keyword,FieldName,Limit(Keyword,Number)))
+
+# replace_regexp
+
+* | replace_regexp ("[0-9]{4}", "****") at card
+
+==>
+
+Query(MatchAll,ReplaceRegexpPipe(PipeName,Value(String),Value(String),Keyword,FieldName))
+
+# sample
+
+* | sample 100
+
+==>
+
+Query(MatchAll,SamplePipe(PipeName,Number))
+
+# set_stream_fields
+
+* | set_stream_fields if (env:prod) host, app
+
+==>
+
+Query(MatchAll,SetStreamFieldsPipe(PipeName,IfClause(Keyword,FieldFilter(FieldName,Phrase)),FieldName,FieldName))
+
+# sort
+
+* | sort by (status desc, _time) desc offset 10 limit 20 rank as pos
+
+==>
+
+Query(MatchAll,SortPipe(PipeName,Keyword,SortFields(SortField(FieldName,Keyword),SortField(FieldName)),Keyword,Offset(Keyword,Number),Limit(Keyword,Number),Rank(Keyword,Keyword,FieldName)))
+
+# sort with partitions
+
+* | order by (duration) partition by (host) limit 3
+
+==>
+
+Query(MatchAll,SortPipe(PipeName,Keyword,SortFields(SortField(FieldName)),Partition(Keyword,Keyword,FieldList(FieldName)),Limit(Keyword,Number)))
+
+# split
+
+* | split "," from tags as tag
+
+==>
+
+Query(MatchAll,SplitPipe(PipeName,Value(String),Keyword,FieldName,Keyword,FieldName))
+
+# stream_context
+
+* | stream_context before 2 after 5 time_window 10m
+
+==>
+
+Query(MatchAll,StreamContextPipe(PipeName,Keyword,Number,Keyword,Number,Keyword,Duration))
+
+# time_add
+
+* | time_add -1h at ts
+
+==>
+
+Query(MatchAll,TimeAddPipe(PipeName,Duration,Keyword,FieldName))
+
+# top
+
+* | top 5 by (ip, path) hits as requests rank
+
+==>
+
+Query(MatchAll,TopPipe(PipeName,Number,Keyword,FieldList(FieldName,FieldName),Keyword,Keyword,FieldName,Rank(Keyword)))
+
+# top without parentheses
+
+* | top ip, path
+
+==>
+
+Query(MatchAll,TopPipe(PipeName,FieldName,FieldName))
+
+# union with a query
+
+* | union (_time:1d error)
+
+==>
+
+Query(MatchAll,UnionPipe(PipeName,Subquery(AndFilter(TimeFilter(FieldName,Time),Phrase))))
+
+# union with rows
+
+* | union rows({a=1})
+
+==>
+
+Query(MatchAll,UnionPipe(PipeName,Rows(Keyword,Row(RowField(FieldName,Value)))))
+
+# uniq
+
+* | uniq by (user, ip) with hits limit 100
+
+==>
+
+Query(MatchAll,UniqPipe(PipeName,Keyword,FieldList(FieldName,FieldName),Keyword,Keyword,Limit(Keyword,Number)))
+
+# uniq with a filter
+
+* | uniq user filter adm
+
+==>
+
+Query(MatchAll,UniqPipe(PipeName,FieldName,Keyword,Value))
+
+# unpack_json
+
+* | unpack_json if (kind:json) from payload fields (a, b) preserve_keys (c) result_prefix "p." keep_original_fields
+
+==>
+
+Query(MatchAll,UnpackJsonPipe(PipeName,IfClause(Keyword,FieldFilter(FieldName,Phrase)),Keyword,FieldName,Keyword,FieldList(FieldName,FieldName),Keyword,FieldList(FieldName),Keyword,Value(String),Keyword))
+
+# unpack_logfmt
+
+* | unpack_logfmt from _msg fields (ip, user) skip_empty_results
+
+==>
+
+Query(MatchAll,UnpackLogfmtPipe(PipeName,Keyword,FieldName,Keyword,FieldList(FieldName,FieldName),Keyword))
+
+# unpack_syslog
+
+* | unpack_syslog from _msg offset 2h result_prefix "s." keep_original_fields
+
+==>
+
+Query(MatchAll,UnpackSyslogPipe(PipeName,Keyword,FieldName,Keyword,Duration,Keyword,Value(String),Keyword))
+
+# unpack_words
+
+* | unpack_words from text as words drop_duplicates
+
+==>
+
+Query(MatchAll,UnpackWordsPipe(PipeName,Keyword,FieldName,Keyword,FieldName,Keyword))
+
+# unroll
+
+* | unroll if (tags:*) by (tags, ids)
+
+==>
+
+Query(MatchAll,UnrollPipe(PipeName,IfClause(Keyword,FieldFilter(FieldName,MatchAll)),Keyword,FieldList(FieldName,FieldName)))
+
+# a keyword after a pipe name is a field name
+
+* | fields limit, by, as | sort by (offset, desc)
+
+==>
+
+Query(MatchAll,FieldsPipe(PipeName,FieldName,FieldName,FieldName),SortPipe(PipeName,Keyword,SortFields(SortField(FieldName),SortField(FieldName))))
+
+# pipe names in any case
+
+* | LIMIT 5 | Fields a
+
+==>
+
+Query(MatchAll,LimitPipe(PipeName,Number),FieldsPipe(PipeName,FieldName))

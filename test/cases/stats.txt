@@ -1,0 +1,111 @@
+# stats with groups
+
+* | stats by (host, level) count() as total
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,Keyword,ByFields(ByField(FieldName),ByField(FieldName)),StatsEntry(StatsFunction(FunctionName,FieldList),Keyword,FieldName)))
+
+# the keyword may be left out
+
+* | count() hits, sum(bytes)
+
+==>
+
+Query(MatchAll,StatsPipe(StatsEntry(StatsFunction(FunctionName,FieldList),FieldName),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName)))))
+
+# time buckets
+
+* | stats by (_time:5m offset 2h, bytes:1KB) count()
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,Keyword,ByFields(ByField(FieldName,BucketSize,Keyword,Value),ByField(FieldName,BucketSize)),StatsEntry(StatsFunction(FunctionName,FieldList))))
+
+# a condition on a function
+
+* | stats count() if (status:>=500) errors, count() total
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList),IfClause(Keyword,FieldFilter(FieldName,Comparison(Number))),FieldName),StatsEntry(StatsFunction(FunctionName,FieldList),FieldName)))
+
+# default result names
+
+* | stats count(), avg(duration), max(a, b*)
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList)),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName))),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName,FieldName)))))
+
+# functions with a limit
+
+* | stats uniq_values(ip) limit 10 ips, count_uniq(user) limit 1000 users
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList(FieldName),Limit(Keyword,Number)),FieldName),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName),Limit(Keyword,Number)),FieldName)))
+
+# quantile and median
+
+* | stats quantile(0.99, duration) p99, median(duration) p50
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList(Number,FieldName)),FieldName),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName)),FieldName)))
+
+# functions that take plain fields
+
+* | stats any(host), field_max(bytes, path), histogram(duration), rate()
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList(FieldName))),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName,FieldName))),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName))),StatsEntry(StatsFunction(FunctionName,FieldList))))
+
+# row functions
+
+* | stats row_max(duration, _time, path) slowest, row_any(*) sample
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList(FieldName,FieldName,FieldName)),FieldName),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName)),FieldName)))
+
+# json_values with sorting
+
+* | stats json_values(a, b) sort by (a desc) limit 5 as top
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList(FieldName,FieldName),Keyword,Keyword,SortFields(SortField(FieldName,Keyword)),Limit(Keyword,Number)),Keyword,FieldName)))
+
+# a switch
+
+* | stats count() switch (case (level:error) errors, case (level:warn) warns, default others)
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList),Switch(Keyword,SwitchCase(IfClause(Keyword,FieldFilter(FieldName,Phrase)),FieldName),SwitchCase(IfClause(Keyword,FieldFilter(FieldName,Phrase)),FieldName),SwitchCase(Keyword,FieldName)))))
+
+# stats_remote
+
+* | stats_remote by (host) count()
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,Keyword,ByFields(ByField(FieldName)),StatsEntry(StatsFunction(FunctionName,FieldList))))
+
+# running_stats
+
+* | running_stats by (host) sum(bytes) as total, count(), first(a) offset 2 prev
+
+==>
+
+Query(MatchAll,RunningStatsPipe(PipeName,Keyword,FieldList(FieldName),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName)),Keyword,FieldName),StatsEntry(StatsFunction(FunctionName,FieldList)),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName),Keyword,Number),FieldName)))
+
+# total_stats
+
+* | total_stats sum(bytes) total, last(user)
+
+==>
+
+Query(MatchAll,TotalStatsPipe(PipeName,StatsEntry(StatsFunction(FunctionName,FieldList(FieldName)),FieldName),StatsEntry(StatsFunction(FunctionName,FieldList(FieldName)))))

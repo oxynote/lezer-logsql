@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		// the package runs in the browser, so it may use neither the DOM
+		// nor Node: no types that declare them
+		"types": [],
+		"noEmit": false,
+		"declaration": true,
+		"rootDir": "src",
+		"outDir": "dist"
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["src/**/*.test.ts", "src/test-helpers.ts"]
+}

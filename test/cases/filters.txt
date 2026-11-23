@@ -1,0 +1,311 @@
+# a word
+
+error
+
+==>
+
+Query(Phrase)
+
+# a quoted phrase
+
+"connection refused"
+
+==>
+
+Query(Phrase(String))
+
+# words joined by an implicit and
+
+error timeout
+
+==>
+
+Query(AndFilter(Phrase,Phrase))
+
+# and, or and not
+
+error and not timeout or panic
+
+==>
+
+Query(OrFilter(AndFilter(Phrase,LogicOperator,NotFilter(LogicOperator,Phrase)),LogicOperator,Phrase))
+
+# the short forms of not
+
+!error -timeout
+
+==>
+
+Query(AndFilter(NotFilter(Phrase),NotFilter(Phrase)))
+
+# parentheses
+
+(error or warn) host
+
+==>
+
+Query(AndFilter(ParenFilter(OrFilter(Phrase,LogicOperator,Phrase)),Phrase))
+
+# a field filter
+
+level:error
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# white space around the colon
+
+level : error
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# a quoted field name
+
+"log level":error
+
+==>
+
+Query(FieldFilter(FieldName(String),Phrase))
+
+# a field over a group of filters
+
+level:(error or warn)
+
+==>
+
+Query(FieldFilter(FieldName,ParenFilter(OrFilter(Phrase,LogicOperator,Phrase))))
+
+# not inside a field
+
+level:!info
+
+==>
+
+Query(FieldFilter(FieldName,NotFilter(Phrase)))
+
+# a prefix
+
+err*
+
+==>
+
+Query(Prefix)
+
+# a quoted prefix
+
+"connection ref"*
+
+==>
+
+Query(Prefix(String))
+
+# a prefix inside a field
+
+level:err*
+
+==>
+
+Query(FieldFilter(FieldName,Prefix))
+
+# a substring
+
+*refused*
+
+==>
+
+Query(Substring(Value))
+
+# every log
+
+*
+
+==>
+
+Query(MatchAll)
+
+# a field that is set
+
+trace_id:*
+
+==>
+
+Query(FieldFilter(FieldName,MatchAll))
+
+# a field name with a wildcard
+
+k8s.*:nginx
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# every field
+
+*:error
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# an exact match
+
+level:=error
+
+==>
+
+Query(FieldFilter(FieldName,Exact(Value)))
+
+# an exact prefix
+
+level:=err*
+
+==>
+
+Query(FieldFilter(FieldName,Exact(Value)))
+
+# not equal
+
+level:!=info
+
+==>
+
+Query(FieldFilter(FieldName,Exact(Value)))
+
+# an exact match on the message
+
+="connection refused"
+
+==>
+
+Query(Exact(Value(String)))
+
+# a regular expression
+
+path:~"^/api/v[0-9]+"
+
+==>
+
+Query(FieldFilter(FieldName,Regexp(Value(String))))
+
+# a negated regular expression
+
+path:!~"health"
+
+==>
+
+Query(FieldFilter(FieldName,Regexp(Value(String))))
+
+# numeric comparisons
+
+status:>=500 duration:<1.5
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,Comparison(Number)),FieldFilter(FieldName,Comparison(Number))))
+
+# a string comparison
+
+name:>bob
+
+==>
+
+Query(FieldFilter(FieldName,Comparison(Value)))
+
+# a list of values
+
+status:in(500, 502, 503)
+
+==>
+
+Query(FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value,Value,Value))))
+
+# any value in the list
+
+status:in(*)
+
+==>
+
+Query(FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList)))
+
+# a list given by a query
+
+user:in(_time:1d error | fields user)
+
+==>
+
+Query(FieldFilter(FieldName,FunctionFilter(FunctionName,Subquery(AndFilter(TimeFilter(FieldName,Time),Phrase),FieldsPipe(PipeName,FieldName)))))
+
+# contains_all and contains_any
+
+tags:contains_all(a, b) tags:contains_any(c, d)
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value,Value))),FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value,Value)))))
+
+# exact and case-insensitive functions
+
+exact(error) i(Error) i(err*)
+
+==>
+
+Query(AndFilter(FunctionFilter(FunctionName,ArgList(Value)),FunctionFilter(FunctionName,ArgList(Value)),FunctionFilter(FunctionName,ArgList(Value))))
+
+# a numeric range
+
+size:range(1KB, 1MB] latency:range[0.1, 0.5)
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,FunctionFilter(FunctionName,Number,Number)),FieldFilter(FieldName,FunctionFilter(FunctionName,Number,Number))))
+
+# functions with one argument
+
+value_type(uint64) ip:eq_field(remote) re("a+")
+
+==>
+
+Query(AndFilter(FunctionFilter(FunctionName,ArgList(Value)),FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value))),FunctionFilter(FunctionName,ArgList(Value(String)))))
+
+# functions with two arguments
+
+len_range(5, 10) string_range(a, f)
+
+==>
+
+Query(AndFilter(FunctionFilter(FunctionName,ArgList(Value,Value)),FunctionFilter(FunctionName,ArgList(Value,Value))))
+
+# an IP range
+
+ip:ipv4_range(10.0.0.0/8) ip:ipv6_range(::1, ::ff)
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value))),FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value,Value)))))
+
+# a sequence of phrases
+
+seq(start, "in progress", done)
+
+==>
+
+Query(FunctionFilter(FunctionName,ArgList(Value,Value(String),Value)))
+
+# a function name without parentheses is a word
+
+exact i range re seq
+
+==>
+
+Query(AndFilter(Phrase,Phrase,Phrase,Phrase,Phrase))
+
+# a trailing semicolon
+
+error;
+
+==>
+
+Query(Phrase)

@@ -1,0 +1,143 @@
+# an operator apart from its value
+
+level = error
+
+# a comparison apart from its value
+
+duration > 5
+
+# two filters with no white space between them
+
+level=error
+
+# a filter right after a group
+
+(a)(b)
+
+# a filter right after a quoted phrase
+
+"a""b"
+
+# no white space after or
+
+error or-else
+
+# no white space after not
+
+not"error"
+
+# a word right after a prefix
+
+err*or
+
+# a function without its parentheses
+
+in
+
+# an unclosed quote
+
+"abc
+
+# an unclosed group
+
+(error
+
+# nothing after and
+
+error and
+
+# nothing before the pipe
+
+| limit 5
+
+# nothing after the pipe
+
+error |
+
+# a pipe that does not exist
+
+* | foo
+
+# a pipe name glued to its argument
+
+* | limit.10
+
+# a filter pipe glued to its keyword
+
+* | filter(level:error)
+
+# a word where a number goes
+
+* | limit ten
+
+# a wildcard where a plain field goes
+
+* | top (a*)
+
+# too many arguments for a filter function
+
+value_type(a, b)
+
+# too few arguments for a stats function
+
+* | stats field_max(a)
+
+# a stats function without parentheses
+
+* | stats count
+
+# a lone dot
+
+level:.
+
+# an operator without a value
+
+level:=
+
+# text after the semicolon
+
+error; more
+
+# a stream filter that is not closed
+
+{app="nginx"
+
+# a stream matcher without an operator
+
+{app}
+
+# a time range that is not closed
+
+_time:[2025-01-01, 2025-02-01
+
+# math without an operand
+
+* | math a +
+
+# a by clause without a function
+
+* | stats by (host)
+
+# a logic word glued to a letter outside the basic plane
+
+𝒜not(a)
+
+# an unknown escape in double quotes
+
+"a\qb"
+
+# an escaped single quote in double quotes
+
+"a\'b"
+
+# an escaped double quote in single quotes
+
+'a\"b'
+
+# a hex escape with one digit
+
+"a\x4"
+
+# an octal escape above 377
+
+"a\400"

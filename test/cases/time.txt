@@ -1,0 +1,95 @@
+# a duration back from now
+
+_time:5m
+
+==>
+
+Query(TimeFilter(FieldName,Time))
+
+# a comparison with a duration
+
+_time:>1h
+
+==>
+
+Query(TimeFilter(FieldName,TimeComparison(Time)))
+
+# a day
+
+_time:2025-01-02
+
+==>
+
+Query(TimeFilter(FieldName,Time))
+
+# a timestamp
+
+_time:2025-01-02T10:20:30Z
+
+==>
+
+Query(TimeFilter(FieldName,Time))
+
+# a range of times
+
+_time:[2025-01-01, 2025-02-01)
+
+==>
+
+Query(TimeFilter(FieldName,TimeRange(Time,Time)))
+
+# a range that ends now
+
+_time:(now-1h, now]
+
+==>
+
+Query(TimeFilter(FieldName,TimeRange(Time,Time)))
+
+# a duration with an offset
+
+_time:5m offset 1h
+
+==>
+
+Query(TimeFilter(FieldName,Time,TimeOffset(Keyword,Duration)))
+
+# an offset alone
+
+_time:offset 1d
+
+==>
+
+Query(TimeFilter(FieldName,TimeOffset(Keyword,Duration)))
+
+# hours of the day
+
+_time:day_range[08:00, 18:00)
+
+==>
+
+Query(TimeFilter(FieldName,DayRange(FunctionName,Time,Time)))
+
+# hours of the day in a time zone
+
+_time:day_range(08:00, 18:00] offset 2h
+
+==>
+
+Query(TimeFilter(FieldName,DayRange(FunctionName,Time,Time,TimeOffset(Keyword,Duration))))
+
+# days of the week
+
+_time:week_range[Mon, Fri]
+
+==>
+
+Query(TimeFilter(FieldName,WeekRange(FunctionName,Value,Value)))
+
+# _time without a colon is a word
+
+_time error
+
+==>
+
+Query(AndFilter(Phrase,Phrase))

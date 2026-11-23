@@ -1,0 +1,23 @@
+# query options
+
+options(concurrency=2, time_offset=1h) error
+
+==>
+
+Query(QueryOptions(Keyword,Option(Keyword,Number),Option(Keyword,Duration)),Phrase)
+
+# boolean options
+
+options(ignore_global_time_filter=true, allow_partial_response=false) *
+
+==>
+
+Query(QueryOptions(Keyword,Option(Keyword,Value),Option(Keyword,Value)),MatchAll)
+
+# a global filter
+
+options(global_filter=(_time:5m env:prod), parallel_readers=4) error
+
+==>
+
+Query(QueryOptions(Keyword,Option(Keyword,AndFilter(TimeFilter(FieldName,Time),FieldFilter(FieldName,Phrase))),Option(Keyword,Number)),Phrase)

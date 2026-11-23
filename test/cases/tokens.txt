@@ -1,0 +1,160 @@
+# glue characters keep a word together
+
+foo-bar.baz/qux$x+1
+
+==>
+
+Query(Phrase)
+
+# underscores and digits
+
+_foo9_ 2xx
+
+==>
+
+Query(AndFilter(Phrase,Phrase))
+
+# a letter outside the basic plane
+
+𝒜𝒷:𝒸
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# a number may carry a sign, a dot or be infinite
+
+a:>-1.5 b:>.5 c:<inf d:>+inf
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,Comparison(Number)),FieldFilter(FieldName,Comparison(Number)),FieldFilter(FieldName,Comparison(Number)),FieldFilter(FieldName,Comparison(Number))))
+
+# a word after a comparison is a string
+
+level:>info
+
+==>
+
+Query(FieldFilter(FieldName,Comparison(Value)))
+
+# a minus before a word is a not
+
+a -b
+
+==>
+
+Query(AndFilter(Phrase,NotFilter(Phrase)))
+
+# a minus inside a word is part of it
+
+a-b
+
+==>
+
+Query(Phrase)
+
+# a star apart from a word matches every log
+
+err *
+
+==>
+
+Query(AndFilter(Phrase,MatchAll))
+
+# a star before white space matches every log
+
+* err
+
+==>
+
+Query(AndFilter(MatchAll,Phrase))
+
+# a function name before a colon is a field
+
+exact:foo i:bar
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,Phrase),FieldFilter(FieldName,Phrase)))
+
+# a quoted keyword is a word
+
+"or" "and" "not"
+
+==>
+
+Query(AndFilter(Phrase(String),Phrase(String),Phrase(String)))
+
+# a backtick string over two lines
+
+`first
+second`
+
+==>
+
+Query(Phrase(String))
+
+# a query inside in that starts with a word
+
+user:in(error | fields user)
+
+==>
+
+Query(FieldFilter(FieldName,FunctionFilter(FunctionName,Subquery(Phrase,FieldsPipe(PipeName,FieldName)))))
+
+# a quoted comma inside a list
+
+x:in("a,b", c)
+
+==>
+
+Query(FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value(String),Value))))
+
+# an escaped quote inside a list
+
+x:in("a\"b, c", d)
+
+==>
+
+Query(FieldFilter(FieldName,FunctionFilter(FunctionName,ArgList(Value(String),Value))))
+
+# a by clause starts a stats pipe
+
+* | by (host) count()
+
+==>
+
+Query(MatchAll,StatsPipe(Keyword,ByFields(ByField(FieldName)),StatsEntry(StatsFunction(FunctionName,FieldList))))
+
+# a parenthesis starts a stats pipe
+
+* | (host) count()
+
+==>
+
+Query(MatchAll,StatsPipe(ByFields(ByField(FieldName)),StatsEntry(StatsFunction(FunctionName,FieldList))))
+
+# no white space around the bars
+
+*|limit 5|fields a
+
+==>
+
+Query(MatchAll,LimitPipe(PipeName,Number),FieldsPipe(PipeName,FieldName))
+
+# a quoted number
+
+* | limit "10" | top "5" by (ip)
+
+==>
+
+Query(MatchAll,LimitPipe(PipeName,Number(String)),TopPipe(PipeName,Number(String),Keyword,FieldList(FieldName)))
+
+# the escapes Go accepts, in double and single quotes
+
+"\a\x41\101\u00e9\U0001F600\"" '\n\''
+
+==>
+
+Query(AndFilter(Phrase(String),Phrase(String)))

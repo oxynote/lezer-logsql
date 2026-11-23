@@ -1,0 +1,255 @@
+# Queries that VictoriaLogs refuses and this grammar accepts, each with
+# the reason VictoriaLogs gives. The grammar checks the shape of a query.
+# It does not check values, such as the range of a number, a time or a
+# pattern, nor names that clash. A variable ($name) or a duration
+# placeholder ($__name) is accepted where VictoriaLogs wants a number or
+# a duration, since it stands for one.
+#
+# A test rewrites this file. Read its diff after a change to the grammar.
+
+" re   (  \"тест(\\\":\"  )  "
+	invalid regexp "_msg":"тест(\":": error parsing regexp: missing closing ): `тест(":`
+"* | extract \"<*>foo<_>bar\""
+	cannot parse "extract" pipe: cannot parse 'pattern' "<*>foo<_>bar": pattern "<*>foo<_>bar" must contain at least a single named field in the form <field_name>
+"* | extract \"<a><b>\""
+	cannot parse "extract" pipe: cannot parse 'pattern' "<a><b>": missing delimiter between <a> and <b>
+"* | extract \"a\""
+	cannot parse "extract" pipe: cannot parse 'pattern' "a": pattern "a" must contain at least a single named field in the form <field_name>
+"* | extract \"foo<*>\" from x"
+	cannot parse "extract" pipe: cannot parse 'pattern' "foo<*>": pattern "foo<*>" must contain at least a single named field in the form <field_name>
+"* | extract \"foo<a*>\" from x"
+	cannot parse "extract" pipe: cannot parse 'pattern' "foo<a*>": wildcard field "a*" isn't supported
+"* | extract from"
+	cannot parse "extract" pipe: cannot parse 'pattern' "from": pattern "from" must contain at least a single named field in the form <field_name>
+"* | extract keep_original_fields"
+	cannot parse "extract" pipe: cannot parse 'pattern' "keep_original_fields": pattern "keep_original_fields" must contain at least a single named field in the form <field_name>
+"* | extract skip_empty_results"
+	cannot parse "extract" pipe: cannot parse 'pattern' "skip_empty_results": pattern "skip_empty_results" must contain at least a single named field in the form <field_name>
+"* | extract_regexp \"(foo)\""
+	cannot parse "extract_regexp" pipe: the 'pattern' "(foo)" must contain at least a single named group in the form (?P<group_name>...)
+"* | extract_regexp \"a\""
+	cannot parse "extract_regexp" pipe: the 'pattern' "a" must contain at least a single named group in the form (?P<group_name>...)
+"* | extract_regexp \"foo(?P<*>.*)\""
+	cannot parse "extract_regexp" pipe: cannot parse 'pattern' "foo(?P<*>.*)": error parsing regexp: invalid named capture: `(?P<*>`
+"* | extract_regexp \"foo(?P<bar*>.*)\""
+	cannot parse "extract_regexp" pipe: cannot parse 'pattern' "foo(?P<bar*>.*)": error parsing regexp: invalid named capture: `(?P<bar*>`
+"* | extract_regexp from"
+	cannot parse "extract_regexp" pipe: the 'pattern' "from" must contain at least a single named group in the form (?P<group_name>...)
+"* | extract_regexp keep_original_fields"
+	cannot parse "extract_regexp" pipe: the 'pattern' "keep_original_fields" must contain at least a single named group in the form (?P<group_name>...)
+"* | extract_regexp skip_empty_results"
+	cannot parse "extract_regexp" pipe: the 'pattern' "skip_empty_results" must contain at least a single named group in the form (?P<group_name>...)
+"* | format \"foo<bar*>\""
+	cannot parse "format" pipe: 'pattern' "foo<bar*>" cannot contain wildcard fields like "bar*"
+"* | generate_sequence -123"
+	cannot parse "generate_sequence" pipe: expecting the number of items to generate in 'generate_sequence' pipe; got "-"
+"* | generate_sequence 0"
+	cannot parse "generate_sequence" pipe: value N in 'generate_sequence 0' must be integer bigger than 0
+"* | limit $n"
+	cannot parse "limit" pipe: cannot parse rows limit from "$n": cannot parse "$n" as unsigned integer: strconv.ParseUint: parsing "$n": invalid syntax
+"* | limit -10"
+	cannot parse "limit" pipe: cannot parse rows limit from "-10": cannot parse negative value "-10" as unsigned integer
+"* | offset -10"
+	cannot parse "offset" pipe: cannot parse 'offset -10': cannot parse negative value "-10" as unsigned integer
+"* | quantile(-1, b)"
+	cannot parse 'stats' pipe: cannot parse "quantile" func: phi arg in 'quantile' must be in the range [0..1]; got "-1"
+"* | quantile(10, b)"
+	cannot parse 'stats' pipe: cannot parse "quantile" func: phi arg in 'quantile' must be in the range [0..1]; got "10"
+"* | replace_regexp (\"foo[\", \"bar\")"
+	cannot parse "replace_regexp" pipe: cannot parse regexp "foo[" in 'replace_regexp': error parsing regexp: missing closing ]: `[)`
+"* | running_stats first(a) offset -1"
+	cannot parse "running_stats" pipe: cannot parse "first" func: cannot parse offset="-" at first("a"): strconv.Atoi: parsing "-": invalid syntax
+"* | running_stats last(a) offset -1"
+	cannot parse "running_stats" pipe: cannot parse "last" func: cannot parse offset="-" at last("a"): strconv.Atoi: parsing "-": invalid syntax
+"* | running_stats sum() x, count() x"
+	cannot parse "running_stats" pipe: cannot use identical result name "x" for [sum(*)] and [count(*)]
+"* | sample -1"
+	cannot parse "sample" pipe: cannot parse sample from "-1": cannot parse negative value "-1" as unsigned integer
+"* | sample 0"
+	cannot parse "sample" pipe: unexpected sample=0; it must be bigger than 0
+"* | sort by (x) partition by (y)"
+	cannot parse "sort" pipe: missing 'limit' for 'partition by'
+"* | split as x"
+	cannot parse "split" pipe: missing split separator in front of "as"
+"* | stats by (_time:$__interval) count()"
+	cannot parse "stats" pipe: cannot parse 'by' clause: cannot parse bucket size for field "_time": "$__interval"
+"* | stats by (x) count() as x"
+	cannot parse "stats" pipe: the "x" is used as 'by' field [x], so it cannot be used as result name for [count(*)]
+"* | stats by (x) count() switch(case (a) x)"
+	cannot parse "stats" pipe: the "x" is used as 'by' field [x], so it cannot be used as result name for [count(*)]
+"* | stats by(x:1h offset foo) count() rows"
+	cannot parse "stats" pipe: cannot parse 'by' clause: cannot parse bucket offset for field "x": "foo"
+"* | stats by(x:abc) count() rows"
+	cannot parse "stats" pipe: cannot parse 'by' clause: cannot parse bucket size for field "x": "abc"
+"* | stats count() as total, avg() switch(case (x) avg_x, default avg_other, default avg_fallback)"
+	cannot parse "stats" pipe: cannot parse 'switch' for [avg(*)]: switch(...) cannot contain more than one 'default'
+"* | stats count() switch(case (x) a, case (y) a)"
+	cannot parse "stats" pipe: cannot use identical result name "a" for [count(*)] and [count(*)]
+"* | stats count() switch(default a, default b)"
+	cannot parse "stats" pipe: cannot parse 'switch' for [count(*)]: switch(...) cannot contain more than one 'default'
+"* | stream_context after -4"
+	cannot parse "stream_context" pipe: 'after' value cannot be smaller than 0; got "-4"
+"* | stream_context after 5 time_window $__interval | time_add $__range"
+	cannot parse "stream_context" pipe: cannot parse 'time_window $__interval'; it must contain valid duration
+"* | stream_context before -4"
+	cannot parse "stream_context" pipe: 'before' value cannot be smaller than 0; got "-4"
+"* | top 5foo bar"
+	cannot parse "top" pipe: cannot parse N in 'top': cannot parse "5foo" as float64
+"* | top rank"
+	cannot parse "top" pipe: expecting at least a single field in 'by(...)'
+"* | total_stats sum() x, count() x"
+	cannot parse "total_stats" pipe: cannot use identical result name "x" for [sum(*)] and [count(*)]
+"* | uniq by (x, y) filter z"
+	cannot parse "uniq" pipe: the 'filter z' inside 'uniq' pipe cannot be applied to multiple fields [x y]
+"* | uniq by hits"
+	cannot parse "uniq" pipe: missing fields after 'by'
+"* | uniq hits"
+	cannot parse "uniq" pipe: missing fields inside 'by(...)'
+"* | uniq limit"
+	cannot parse "uniq" pipe: missing fields inside 'by(...)'
+"\"_stream\":=\"\""
+	unexpected token "=" instead of '{' in _stream filter
+"\"_stream_id\":=\"\""
+	cannot parse _stream_id: compound token cannot start with "="; put it into quotes if needed
+"\"_time\":foo"
+	cannot parse duration at _time filter: cannot parse duration "foo"
+"_stream:(foo)"
+	unexpected token "(" instead of '{' in _stream filter
+"_stream:foo"
+	unexpected token "foo" instead of '{' in _stream filter
+"_stream_id:foo"
+	cannot parse _stream_id: cannot unmarshal _stream_id from "foo"
+"_stream_id:in(* | stats by (x) count() y)"
+	cannot parse in(): missing ',' after "*"; got "|" instead
+"_stream_id:in(foo)"
+	cannot unmarshal _stream_id from "foo"
+"_time:$__range"
+	cannot parse duration at _time filter: cannot parse duration "$__range"
+"_time:$window offset $shift"
+	cannot parse duration at _time filter: cannot parse duration "$window"
+"_time:2023-01-02T04:05:06.789"
+	cannot parse _time filter: parsing time "2023-01-02T04:05:06.789" as "2006-01-02T15:04:05Z07:00": cannot parse "" as "Z07:00"
+"_time:234foo"
+	cannot parse duration at _time filter: cannot parse duration "234foo"
+"_time:>$__interval offset $__range"
+	cannot parse duration at _time filter: cannot parse duration "$__interval"
+"_time:[$__from, $__to)"
+	cannot parse start time in _time filter: cannot parse duration "$__from"
+"_time:[2023-01-02T04:05:06+12,2023]"
+	cannot parse start time in _time filter: parsing time "2023-01-02T04:05:06+12" as "2006-01-02T15:04:05Z07:00": cannot parse "+12" as "Z07:00"
+"_time:[2023-01-02T04:05:06-12,2023]"
+	cannot parse start time in _time filter: parsing time "2023-01-02T04:05:06-12" as "2006-01-02T15:04:05Z07:00": cannot parse "-12" as "Z07:00"
+"_time:[2023-ab,2023]"
+	cannot parse start time in _time filter: cannot parse duration "2023-ab"
+"_time:[foo,bar)"
+	cannot parse start time in _time filter: cannot parse duration "foo"
+"_time:[fooo-02,2023]"
+	cannot parse start time in _time filter: parsing time "fooo-02" as "2006-01": cannot parse "fooo-02" as "2006"
+"_time:[now-foo,-bar]"
+	cannot parse start time in _time filter: cannot parse duration "-foo"
+"_time:foo"
+	cannot parse duration at _time filter: cannot parse duration "foo"
+"_time:week_range[Sun,mom]"
+	cannot read `end` arg at week_range filter: cannot parse "mom" as weekday
+"_time:week_range[mom,Wed]"
+	cannot read `start` arg at week_range filter: cannot parse "mom" as weekday
+"contains_all(foo bar)"
+	cannot parse contains_all(): missing ',' after "foo"; got "bar" instead
+"contains_all(foo*)"
+	cannot parse contains_all(): missing ',' after "foo"; got "*" instead
+"contains_all(x | fields a,b)"
+	cannot parse contains_all(): missing ',' after "x"; got "|" instead
+"contains_all(x | limit 10)"
+	cannot parse contains_all(): missing ',' after "x"; got "|" instead
+"contains_any(foo bar)"
+	cannot parse contains_any(): missing ',' after "foo"; got "bar" instead
+"contains_any(foo*)"
+	cannot parse contains_any(): missing ',' after "foo"; got "*" instead
+"contains_any(x | fields a,b)"
+	cannot parse contains_any(): missing ',' after "x"; got "|" instead
+"contains_any(x | limit 10)"
+	cannot parse contains_any(): missing ',' after "x"; got "|" instead
+"foo | extract \"<>\""
+	cannot parse "extract" pipe: cannot parse 'pattern' "<>": pattern "<>" must contain at least a single named field in the form <field_name>
+"foo | extract \"foo<>foo<_>bar<*>asdf\""
+	cannot parse "extract" pipe: cannot parse 'pattern' "foo<>foo<_>bar<*>asdf": pattern "foo<>foo<_>bar<*>asdf" must contain at least a single named field in the form <field_name>
+"foo | extract \"foo<>foo\""
+	cannot parse "extract" pipe: cannot parse 'pattern' "foo<>foo": pattern "foo<>foo" must contain at least a single named field in the form <field_name>
+"foo | extract \"xy\""
+	cannot parse "extract" pipe: cannot parse 'pattern' "xy": pattern "xy" must contain at least a single named field in the form <field_name>
+"foo | extract bar"
+	cannot parse "extract" pipe: cannot parse 'pattern' "bar": pattern "bar" must contain at least a single named field in the form <field_name>
+"foo | extract from"
+	cannot parse "extract" pipe: cannot parse 'pattern' "from": pattern "from" must contain at least a single named field in the form <field_name>
+"foo | generate_sequence -1"
+	cannot parse "generate_sequence" pipe: expecting the number of items to generate in 'generate_sequence' pipe; got "-"
+"foo | limit -123"
+	cannot parse "limit" pipe: cannot parse rows limit from "-123": cannot parse negative value "-123" as unsigned integer
+"foo | offset -10"
+	cannot parse "offset" pipe: cannot parse 'offset -10': cannot parse negative value "-10" as unsigned integer
+"foo | sample -1"
+	cannot parse "sample" pipe: cannot parse sample from "-1": cannot parse negative value "-1" as unsigned integer
+"foo | sample 0"
+	cannot parse "sample" pipe: unexpected sample=0; it must be bigger than 0
+"foo | sort by(bar) limit -1234"
+	cannot parse "sort" pipe: cannot parse "-1234" as number in the 'limit'
+"foo | sort by(bar) limit 10 limit 20"
+	cannot parse "sort" pipe: duplicate 'limit'; the previous one is 10; the new one is 20
+"foo | sort by(bar) limit 12.34"
+	cannot parse "sort" pipe: cannot parse "12.34" as number in the 'limit'
+"foo | sort by(bar) offset -1234"
+	cannot parse "sort" pipe: cannot parse "-1234" as number in the 'offset'
+"foo | sort by(bar) offset 10 offset 20"
+	cannot parse "sort" pipe: duplicate 'offset'; the previous one is 10; the new one is 20
+"foo | sort by(bar) offset 12.34"
+	cannot parse "sort" pipe: cannot parse "12.34" as number in the 'offset'
+"foo | stats by (foo:1h offset bar) count() baz"
+	cannot parse "stats" pipe: cannot parse 'by' clause: cannot parse bucket offset for field "foo": "bar"
+"foo | stats by (x) count() x"
+	cannot parse "stats" pipe: the "x" is used as 'by' field [x], so it cannot be used as result name for [count(*)]
+"foo | stats by(foo:-1h) count() baz"
+	cannot parse "stats" pipe: cannot parse 'by' clause: cannot parse bucket size for field "foo": "-1h"
+"foo | stats by(foo:/bar) count() baz"
+	cannot parse "stats" pipe: cannot parse 'by' clause: cannot parse bucket size for field "foo": "/bar"
+"foo | stats by(foo:bar) count() baz"
+	cannot parse "stats" pipe: cannot parse 'by' clause: cannot parse bucket size for field "foo": "bar"
+"foo | stats min() x, max() x"
+	cannot parse "stats" pipe: cannot use identical result name "x" for [min(*)] and [max(*)]
+"foo | stats quantile(-1, x) foo"
+	cannot parse "stats" pipe: cannot parse "quantile" func: phi arg in 'quantile' must be in the range [0..1]; got "-1"
+"foo | stats quantile(10, x) foo"
+	cannot parse "stats" pipe: cannot parse "quantile" func: phi arg in 'quantile' must be in the range [0..1]; got "10"
+"foo | stats uniq_values(a) limit -1"
+	cannot parse "stats" pipe: cannot parse "uniq_values" func: cannot parse "-1" as number in the 'limit'
+"foo | stats uniq_values(a) limit 0.5"
+	cannot parse "stats" pipe: cannot parse "uniq_values" func: cannot parse "0.5" as number in the 'limit'
+"foo | stats values(a) limit -1"
+	cannot parse "stats" pipe: cannot parse "values" func: cannot parse "-1" as number in the 'limit'
+"foo | stats values(a) limit 0.5"
+	cannot parse "stats" pipe: cannot parse "values" func: cannot parse "0.5" as number in the 'limit'
+"foo | uniq by(a) limit -10"
+	cannot parse "uniq" pipe: cannot parse "-10" as number in the 'limit'
+"foo | uniq limit"
+	cannot parse "uniq" pipe: missing fields inside 'by(...)'
+"foo:~-bar"
+	regexp, which start with "-", must be put in quotes
+"in(foo bar)"
+	cannot parse in(): missing ',' after "foo"; got "bar" instead
+"in(foo*)"
+	cannot parse in(): missing ',' after "foo"; got "*" instead
+"in(x | fields a,b)"
+	cannot parse in(): missing ',' after "x"; got "|" instead
+"in(x | limit 10)"
+	cannot parse in(): missing ',' after "x"; got "|" instead
+"ipv4_range(1.2.3.4, 5.6.7)"
+	cannot parse upper bound ip "5.6.7" in ipv4_range()
+"ipv4_range(foo,bar)"
+	cannot parse lower bound ip "foo" in ipv4_range()
+"len_range(1, bar)"
+	cannot parse maxLen at len_range(): cannot parse "bar" as unsigned integer: strconv.ParseUint: parsing "bar": invalid syntax
+"len_range(1.2, 3.4)"
+	cannot parse minLen at len_range(): cannot parse "1.2" as unsigned integer: strconv.ParseUint: parsing "1.2": invalid syntax
+"len_range(foo, bar)"
+	cannot parse minLen at len_range(): cannot parse "foo" as unsigned integer: strconv.ParseUint: parsing "foo": invalid syntax
+"re(`ab(`)"
+	invalid regexp "_msg":"ab(": error parsing regexp: missing closing ): `ab(`

@@ -1,0 +1,32 @@
+{
+	"compilerOptions": {
+		"target": "ES2023",
+		"lib": ["ES2023"],
+		// the tests and the scripts run in Node. The library itself must
+		// not, which tsconfig.build.json checks by declaring no types.
+		"types": ["node"],
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		// sources import each other with the .ts extension, so Node can run
+		// them as they are. The build rewrites the extension to .js.
+		"allowImportingTsExtensions": true,
+		"rewriteRelativeImportExtensions": true,
+		// Node runs the sources by erasing their types, so no syntax may
+		// need more than that
+		"erasableSyntaxOnly": true,
+		"noEmit": true,
+		"strict": true,
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitAny": true,
+		"forceConsistentCasingInFileNames": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+		"allowUnreachableCode": false
+	},
+	"include": ["src/**/*.ts", "scripts/**/*.ts", "*.ts"],
+	"exclude": ["node_modules", "dist"]
+}

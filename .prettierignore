@@ -1,0 +1,13 @@
+pnpm-lock.yaml
+dist
+coverage
+
+# generated from the grammar
+src/parser.ts
+src/parser.terms.ts
+
+# written by the sync
+upstream
+test/victorialogs-answers.json
+
+*.md

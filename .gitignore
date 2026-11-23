@@ -1,0 +1,20 @@
+# Node dependencies
+node_modules
+
+# Build output
+dist
+
+# Generated from src/logsql.grammar by `pnpm generate`
+src/parser.ts
+src/parser.terms.ts
+
+# Code coverage
+coverage
+
+# Logs
+*.log
+
+# Misc
+.DS_Store
+.idea
+.vscode

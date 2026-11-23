@@ -1,0 +1,88 @@
+# a host name is one word
+
+host:web-1.example.com:8080
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# a path is one word
+
+/var/log/nginx/access.log
+
+==>
+
+Query(Phrase)
+
+# an IP address
+
+10.0.0.1
+
+==>
+
+Query(Phrase)
+
+# a colon ends the first word only
+
+a:b:c
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# letters outside ASCII
+
+ошибка größe:über
+
+==>
+
+Query(AndFilter(Phrase,FieldFilter(FieldName,Phrase)))
+
+# the three kinds of quotes
+
+"double \" quote" 'single \' quote' `back\tick`
+
+==>
+
+Query(AndFilter(Phrase(String),Phrase(String),Phrase(String)))
+
+# keywords in any case
+
+Error AND NOT Timeout OR _TIME:5m
+
+==>
+
+Query(OrFilter(AndFilter(Phrase,LogicOperator,NotFilter(LogicOperator,Phrase)),LogicOperator,TimeFilter(FieldName,Time)))
+
+# a keyword after a colon is a word
+
+level:or kind:and
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,Phrase),FieldFilter(FieldName,Phrase)))
+
+# a keyword at the start of a filter is a word
+
+or-else
+
+==>
+
+Query(Phrase)
+
+# a comment
+
+error # only errors
+
+==>
+
+Query(Phrase,LineComment)
+
+# a comment that ends a line
+
+_time:1h # the last hour
+error
+
+==>
+
+Query(AndFilter(TimeFilter(FieldName,Time),LineComment,Phrase))

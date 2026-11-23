@@ -1,0 +1,119 @@
+# a variable as a word
+
+$env
+
+==>
+
+Query(Phrase(VariableReference))
+
+# a variable as a field value
+
+env:$env status:>$min
+
+==>
+
+Query(AndFilter(FieldFilter(FieldName,Phrase(VariableReference)),FieldFilter(FieldName,Comparison(Value(VariableReference)))))
+
+# a variable inside a word is part of the word
+
+host:web-$zone.example.com
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))
+
+# a name that goes on after the variable is a word
+
+$a.b
+
+==>
+
+Query(Phrase)
+
+# a dollar before a digit is no variable
+
+$1
+
+==>
+
+Query(Phrase)
+
+# a variable as a number
+
+* | limit $n
+
+==>
+
+Query(MatchAll,LimitPipe(PipeName,VariableReference))
+
+# a variable as a duration
+
+_time:$window offset $shift
+
+==>
+
+Query(TimeFilter(FieldName,VariableReference,TimeOffset(Keyword,VariableReference)))
+
+# a variable as a field name
+
+$field:error | fields $field
+
+==>
+
+Query(FieldFilter(FieldName(VariableReference),Phrase),FieldsPipe(PipeName,FieldName(VariableReference)))
+
+# an uppercase name is no variable
+
+$Env
+
+==>
+
+Query(Phrase)
+
+# a duration placeholder as a time
+
+_time:$__range
+
+==>
+
+Query(TimeFilter(FieldName,DynamicDurationPlaceholder))
+
+# a duration placeholder in a comparison and an offset
+
+_time:>$__interval offset $__range
+
+==>
+
+Query(TimeFilter(FieldName,TimeComparison(DynamicDurationPlaceholder),TimeOffset(Keyword,DynamicDurationPlaceholder)))
+
+# duration placeholders in a range of times
+
+_time:[$__from, $__to)
+
+==>
+
+Query(TimeFilter(FieldName,TimeRange(DynamicDurationPlaceholder,DynamicDurationPlaceholder)))
+
+# a duration placeholder as a bucket
+
+* | stats by (_time:$__interval) count()
+
+==>
+
+Query(MatchAll,StatsPipe(PipeName,Keyword,ByFields(ByField(FieldName,BucketSize(DynamicDurationPlaceholder))),StatsEntry(StatsFunction(FunctionName,FieldList))))
+
+# a duration placeholder in a pipe
+
+* | stream_context after 5 time_window $__interval | time_add $__range
+
+==>
+
+Query(MatchAll,StreamContextPipe(PipeName,Keyword,Number,Keyword,DynamicDurationPlaceholder),TimeAddPipe(PipeName,DynamicDurationPlaceholder))
+
+# a duration placeholder where no duration goes is a word
+
+level:$__interval
+
+==>
+
+Query(FieldFilter(FieldName,Phrase))

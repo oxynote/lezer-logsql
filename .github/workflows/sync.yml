@@ -1,0 +1,143 @@
+name: Sync
+
+# follows VictoriaLogs. LogsQL gains pipes, functions and options in most
+# releases. So this workflow writes upstream/ again from the newest
+# release and opens a pull request when anything differs: a new keyword,
+# a new test query, or a query whose verdict changed.
+on:
+  schedule:
+    # weekly is enough. A release comes out every week or two, and the
+    # grammar only needs it once someone runs that release.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "VictoriaLogs tag to sync to (default: the newest release)"
+        required: false
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  sync:
+    name: Syncing with VictoriaLogs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # the token stays out of .git/config, so the install and the tests
+      # cannot push with it. Only the last step gets it.
+      - name: Check out the code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # a sync/<tag> branch that already exists may hold fixes pushed by
+      # hand. So the run ends there and leaves the branch alone.
+      - name: Resolve the tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="$INPUT_TAG"
+          if [[ -z "$tag" ]]; then
+            tag="$(gh api repos/VictoriaMetrics/VictoriaLogs/releases/latest --jq .tag_name)"
+          fi
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
+          if [[ "$tag" == "$(cat upstream/VERSION)" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          elif gh api "repos/$GITHUB_REPOSITORY/branches/sync/$tag" --silent 2>/dev/null; then
+            echo "sync/$tag already exists"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up pnpm
+        if: steps.tag.outputs.changed == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        if: steps.tag.outputs.changed == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Installing dependencies
+        if: steps.tag.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Generating the parser
+        if: steps.tag.outputs.changed == 'true'
+        run: pnpm run generate
+
+      - name: Starting VictoriaLogs
+        if: steps.tag.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+        run: ./scripts/start-victorialogs.sh "$TAG"
+
+      - name: Writing upstream/ from the release
+        if: steps.tag.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+        run: pnpm run sync-upstream "$TAG"
+
+      # the tests say what the release changed for the grammar. They may
+      # fail here, which is the point: the result goes into the pull
+      # request. The update flag rewrites test/accepted-invalid.txt, so
+      # its diff shows too.
+      - name: Running the tests against the new record
+        if: steps.tag.outputs.changed == 'true'
+        id: tests
+        run: |
+          if pnpm exec vitest run --update > /tmp/tests.log 2>&1; then
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          fi
+          tail -n 60 /tmp/tests.log
+
+      - name: Opening the pull request
+        if: steps.tag.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.value }}
+          RESULT: ${{ steps.tests.outputs.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          branch="sync/$TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add upstream test/victorialogs-answers.json test/accepted-invalid.txt
+          git commit -m "sync: VictoriaLogs $TAG"
+          git push "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" "$branch"
+
+          if [[ "$RESULT" == "pass" ]]; then
+            verdict="The tests pass against it, so the grammar already reads this release."
+          else
+            verdict="The tests fail against it, so the grammar needs a change. The log of [the sync run]($RUN_URL) lists what failed."
+          fi
+          printf '%s\n' \
+            "\`upstream/\` now holds the keywords and the queries of VictoriaLogs \`$TAG\`, each query with the verdict of that release." \
+            "" \
+            "$verdict" \
+            "" \
+            "SYNCING.md says how to read the diff and what to do next. Pushing a commit to this branch runs the QA workflow, which a pull request opened by a workflow does not start by itself." \
+            > /tmp/pr-body.md
+
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "sync: VictoriaLogs $TAG" \
+            --body-file /tmp/pr-body.md

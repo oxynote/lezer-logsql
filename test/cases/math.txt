@@ -1,0 +1,55 @@
+# operator precedence
+
+* | math a + b * c ^ 2 as x
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathBinary(FieldName,MathBinary(FieldName,MathBinary(FieldName,Number))),Keyword,FieldName)))
+
+# parentheses
+
+* | math (a + b) * c as x
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathBinary(MathParens(MathBinary(FieldName,FieldName)),FieldName),Keyword,FieldName)))
+
+# unary operators
+
+* | math -a + +b as x
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathBinary(MathUnary(FieldName),MathUnary(FieldName)),Keyword,FieldName)))
+
+# words stop at the operators
+
+* | math a-b/c as x
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathBinary(FieldName,MathBinary(FieldName,FieldName)),Keyword,FieldName)))
+
+# keyword operators
+
+* | math flags & 1 or 2 xor 3 as x, duration default 0 as d
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathBinary(MathBinary(FieldName,Number),OperatorKeyword,MathBinary(Number,OperatorKeyword,Number)),Keyword,FieldName),MathEntry(MathBinary(FieldName,OperatorKeyword,Number),Keyword,FieldName)))
+
+# functions
+
+* | eval abs(a), max(a, b, 1), now() - _time as age, rand(), round(x), ceil(x), floor(x), exp(x), ln(x)
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathFunction(FunctionName,FieldName)),MathEntry(MathFunction(FunctionName,FieldName,FieldName,Number)),MathEntry(MathBinary(MathFunction(FunctionName),FieldName),Keyword,FieldName),MathEntry(MathFunction(FunctionName)),MathEntry(MathFunction(FunctionName,FieldName)),MathEntry(MathFunction(FunctionName,FieldName)),MathEntry(MathFunction(FunctionName,FieldName)),MathEntry(MathFunction(FunctionName,FieldName)),MathEntry(MathFunction(FunctionName,FieldName))))
+
+# numbers and quoted fields
+
+* | math 1.5 * "response time" + 10KB as x
+
+==>
+
+Query(MatchAll,MathPipe(PipeName,MathEntry(MathBinary(MathBinary(Number,FieldName(String)),Number),Keyword,FieldName)))

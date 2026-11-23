@@ -1,0 +1,42 @@
+@oxynote/lezer-logsql
+Copyright 2026 Oxynote
+
+This package is a Lezer grammar for LogsQL, the query language of
+VictoriaLogs. The grammar, its tokenizer and the tooling around them are
+Oxynote's own work, distributed under the Apache License, Version 2.0.
+
+The grammar follows the parser of VictoriaLogs:
+
+  https://github.com/VictoriaMetrics/VictoriaLogs/blob/master/lib/logstorage/parser.go
+
+VictoriaLogs is Copyright 2019-2026 VictoriaMetrics, Inc. and is
+distributed under the Apache License, Version 2.0:
+
+  https://github.com/VictoriaMetrics/VictoriaLogs/blob/master/LICENSE
+
+The parts below come from VictoriaLogs.
+
+In the published package:
+
+  - src/keywords.ts (dist/keywords.js): the names of the pipes and
+    functions, read from the parser's source in
+    https://github.com/VictoriaMetrics/VictoriaLogs/tree/master/lib/logstorage
+
+In the repository only:
+
+  - upstream/keywords.json: the same names, and every keyword the parser
+    checks.
+  - upstream/queries.json: queries from the tests in
+    https://github.com/VictoriaMetrics/VictoriaLogs/tree/master/lib/logstorage
+    (the *_test.go files) and from the examples in
+    https://github.com/VictoriaMetrics/VictoriaLogs/blob/master/docs/victorialogs/logsql.md
+    Each query is stored with the verdict of a VictoriaLogs server, and an
+    invalid one with the server's error message.
+  - test/victorialogs-answers.json: the verdicts and error messages a
+    VictoriaLogs server gave on this repository's own test queries. The
+    queries are Oxynote's own.
+  - test/accepted-invalid.txt: queries from the two files above, with the
+    same error messages.
+
+scripts/sync-upstream.ts rewrites the files under upstream/ from a
+VictoriaLogs release.

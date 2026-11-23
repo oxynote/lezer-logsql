@@ -1,0 +1,815 @@
+// LogsQL is the query language of VictoriaLogs. The rules here follow
+// its parser.
+
+@top Query { query }
+
+@precedence {
+	power @left,
+	times @left,
+	plus @left,
+	bitAnd @left,
+	bitXor @left,
+	bitOr @left,
+	orDefault @left
+}
+
+query { QueryOptions? filterExpr ("|" pipe ("|" pipe)*)? ";"? }
+
+Subquery { "(" query ")" }
+
+QueryOptions { kw<options> "(" listOf<Option>? ")" }
+
+Option {
+	kw<concurrency | parallel_readers> "=" number |
+	kw<ignore_global_time_filter | allow_partial_response> "=" value |
+	kw<time_offset> "=" duration |
+	kw<global_filter> "=" "(" filterExpr ")"
+}
+
+// ---------------------------------------------------------------------
+// Filters
+//
+// A filter is either at the top level, where a word may name a field
+// (level:error), or already inside a field (level:(error or warn)), where
+// it may not. The rules are written once and take the unit that differs.
+// ---------------------------------------------------------------------
+
+filterExpr { orLevel<topUnit> }
+
+fieldExpr { orLevel<fieldUnit> }
+
+orLevel<unit> { OrFilter<unit> | andLevel<unit> }
+
+OrFilter<unit> { andLevel<unit> (logic<or> andLevel<unit>)+ }
+
+// filters that follow each other are joined by an and,
+// written or not.
+andLevel<unit> { AndFilter<unit> | notLevel<unit> }
+
+AndFilter<unit> { notLevel<unit> (logic<and>? notLevel<unit>)+ }
+
+// filterStart is an empty token. The tokenizer
+// leaves it out where a filter may not start, such as right after
+// another word.
+notLevel<unit> { filterStart (NotFilter<unit> | unit) }
+
+NotFilter<unit> { (logic<not> | "!" | opMinus) notLevel<unit> }
+
+// a filter at the top level
+topUnit {
+	FieldFilter |
+	TimeFilter |
+	StreamIdFilter |
+	commonUnit<filterExpr, bareWord, noSpace>
+}
+
+// a filter inside a field
+fieldUnit { commonUnit<fieldExpr, bareValue, nothing> }
+
+// matches no text
+nothing { () }
+
+// a phrase with a colon after it, so a field name
+FieldFilter {
+	FieldName { "*" | text<bareWord> prefixStar? } opColon notLevel<fieldUnit>
+}
+
+// At the top level an operator such as = must touch its value, so that
+// "level = error" is not read as three words. The gap is noSpace there,
+// and nothing inside a field.
+commonUnit<expr, word, gap> {
+	ParenFilter { "(" expr ")" } |
+	MatchAll { "*" } |
+	Substring { substringStar value prefixStar } |
+	Phrase { text<word> } |
+	Prefix { text<word> prefixStar } |
+	Exact { ("=" | "!=") gap value prefixStar? } |
+	Regexp { ("~" | "!~") gap value } |
+	Comparison { (">" | ">=" | "<" | "<=") gap (Number { bareNumber } | value) } |
+	FunctionFilter |
+	StreamFilter
+}
+
+FunctionFilter {
+	fn<in | contains_all | contains_any>
+	(WildcardArgList | subqueryStart Subquery) |
+	fn<exact | i> argList<"*" | value prefixStar?> |
+	fn<range> rangeOpen number "," number rangeClose |
+	// by the number of arguments the function takes: any number, one,
+	// two, and one or two
+	fn<contains_common_case | equals_common_case | json_array_contains_any | seq>
+	ArgList |
+	fn<
+		eq_field | le_field | lt_field | pattern_match | pattern_match_full |
+		pattern_match_prefix | pattern_match_suffix | re | value_type
+	> argList<value ","?> |
+	fn<len_range | string_range> argList<value "," value ","?> |
+	fn<ipv4_range | ipv6_range> argList<value ("," value)? ","?>
+}
+
+ArgList { "(" listOf<value>? ")" }
+
+argList<content> { ArgList { "(" content ")" } }
+
+WildcardArgList[@name=ArgList] { "(" listOf<"*" | value>? ")" }
+
+TimeFilter { field<_time> opColon timeSpec }
+
+timeSpec {
+	DayRange { fn<day_range> rangeOpen time "," time rangeClose TimeOffset? } |
+	WeekRange { fn<week_range> rangeOpen value "," value rangeClose TimeOffset? } |
+	TimeOffset |
+	timeValue TimeOffset?
+}
+
+timeValue {
+	TimeComparison { (">" | ">=" | "<" | "<=" | "=") time } |
+	TimeRange { rangeOpen time "," time rangeClose } |
+	time
+}
+
+TimeOffset { kw<offset> duration }
+
+rangeOpen { "[" | "(" }
+
+rangeClose { "]" | ")" }
+
+// VictoriaLogs takes a stream filter at the top level and after
+// the _stream field. After any other field it is an error, which this
+// grammar does not report.
+StreamFilter { "{" (streamAnd (logic<or> streamAnd)*)? "}" }
+
+streamAnd { StreamMatcher ("," StreamMatcher)* ","? }
+
+StreamMatcher {
+	fieldName (("=" | "!=" | "=~" | "!~") value | kw<in | not_in> WildcardArgList)
+}
+
+StreamIdFilter {
+	field<_stream_id> opColon
+	(value | fn<in> (WildcardArgList | subqueryStart Subquery))
+}
+
+// ---------------------------------------------------------------------
+// Pipes
+// ---------------------------------------------------------------------
+
+pipe {
+	BlockStatsPipe |
+	BlocksCountPipe |
+	CoalescePipe |
+	CollapseNumsPipe |
+	CopyPipe |
+	DecolorizePipe |
+	DeletePipe |
+	DropEmptyFieldsPipe |
+	ExtractPipe |
+	ExtractRegexpPipe |
+	FacetsPipe |
+	FieldNamesPipe |
+	FieldValuesPipe |
+	FieldsPipe |
+	FilterPipe |
+	FirstPipe |
+	FormatPipe |
+	GenerateSequencePipe |
+	HashPipe |
+	JoinPipe |
+	JsonArrayConcatPipe |
+	JsonArrayLenPipe |
+	LastPipe |
+	LenPipe |
+	LimitPipe |
+	MathPipe |
+	OffsetPipe |
+	PackJsonPipe |
+	PackLogfmtPipe |
+	QueryStatsPipe |
+	RenamePipe |
+	ReplacePipe |
+	ReplaceRegexpPipe |
+	RunningStatsPipe |
+	SamplePipe |
+	SetStreamFieldsPipe |
+	SortPipe |
+	SplitPipe |
+	StatsPipe |
+	StreamContextPipe |
+	TimeAddPipe |
+	TopPipe |
+	TotalStatsPipe |
+	UnionPipe |
+	UniqPipe |
+	UnpackJsonPipe |
+	UnpackLogfmtPipe |
+	UnpackSyslogPipe |
+	UnpackWordsPipe |
+	UnrollPipe
+}
+
+BlockStatsPipe { pipeName<block_stats> }
+
+BlocksCountPipe { pipeName<blocks_count> resultName? }
+
+CoalescePipe {
+	pipeName<coalesce> fieldList<listOf<fieldPattern>> (kw<default> value)?
+	(kw<as> fieldName)?
+}
+
+CollapseNumsPipe {
+	pipeName<collapse_nums> ifClause<if>? (kw<at> fieldName)? kw<prettify>?
+}
+
+CopyPipe { pipeName<copy | cp> fieldMappings }
+
+DecolorizePipe { pipeName<decolorize> fieldName? }
+
+DeletePipe { pipeName<delete | del | rm | drop> fieldPatterns }
+
+DropEmptyFieldsPipe { pipeName<drop_empty_fields> }
+
+ExtractPipe { pipeName<extract> extractArgs }
+
+ExtractRegexpPipe { pipeName<extract_regexp> extractArgs }
+
+extractArgs { ifClause<if>? value (kw<from> fieldName)? keepOrSkip? }
+
+keepOrSkip { kw<keep_original_fields | skip_empty_results> }
+
+FacetsPipe {
+	pipeName<facets> number?
+	(kw<max_values_per_field | max_value_len> number | kw<keep_const_fields>)*
+}
+
+FieldNamesPipe { pipeName<field_names> (kw<filter> value)? resultName? }
+
+FieldValuesPipe {
+	pipeName<field_values> fieldNameMaybeParens (kw<filter> value)? Limit?
+}
+
+FieldsPipe { pipeName<fields | keep> fieldPatterns }
+
+// the keyword may be left out. Then filterPipeStart stands in its
+// place.
+FilterPipe { (pipeName<filter | where> | filterPipeStart) filterExpr }
+
+FirstPipe { pipeName<first> firstLastArgs }
+
+LastPipe { pipeName<last> firstLastArgs }
+
+firstLastArgs { number? (kw<by>? SortFields)? Partition? Rank? }
+
+FormatPipe {
+	pipeName<format> ifClause<if>? value (kw<as> fieldName)? keepOrSkip?
+}
+
+GenerateSequencePipe { pipeName<generate_sequence> number }
+
+HashPipe { pipeName<hash> fieldTransform }
+
+JsonArrayLenPipe { pipeName<json_array_len> fieldTransform }
+
+LenPipe { pipeName<len> fieldTransform }
+
+fieldTransform { fieldNameMaybeParens kw<as>? fieldName? }
+
+JoinPipe {
+	pipeName<join> kw<by | on>? someNames (Rows | Subquery)
+	(kw<inner> (kw<prefix> value)? | kw<prefix> value kw<inner>?)?
+}
+
+JsonArrayConcatPipe {
+	pipeName<json_array_concat> (value sourceAndResult? | keyedSourceAndResult)?
+}
+
+LimitPipe { pipeName<limit | head> number? }
+
+MathPipe { pipeName<math | eval> MathEntry ("," MathEntry)* }
+
+OffsetPipe { pipeName<offset | skip> number }
+
+PackJsonPipe { pipeName<pack_json> packArgs }
+
+PackLogfmtPipe { pipeName<pack_logfmt> packArgs }
+
+packArgs { (kw<fields> FieldList)? kw<as>? fieldName? }
+
+QueryStatsPipe { pipeName<query_stats> }
+
+RenamePipe { pipeName<rename | mv> fieldMappings }
+
+ReplacePipe { pipeName<replace> replaceArgs }
+
+ReplaceRegexpPipe { pipeName<replace_regexp> replaceArgs }
+
+replaceArgs {
+	ifClause<if>? "(" value "," value ")" (kw<at> fieldName)? Limit?
+}
+
+RunningStatsPipe { pipeName<running_stats> runningStatsArgs }
+
+TotalStatsPipe { pipeName<total_stats> runningStatsArgs }
+
+runningStatsArgs {
+	(kw<by>? NameList)? RunningStatsEntry ("," RunningStatsEntry)*
+}
+
+RunningStatsEntry[@name=StatsEntry] { RunningStatsFunction resultName? }
+
+RunningStatsFunction[@name=StatsFunction] {
+	fn<count | max | min | sum> FieldList |
+	fn<first | last> fieldList<fieldName ","?> (kw<offset> number)?
+}
+
+SamplePipe { pipeName<sample> number }
+
+SetStreamFieldsPipe {
+	pipeName<set_stream_fields> ifClause<if>? fieldPatterns
+}
+
+SortPipe {
+	pipeName<sort | order> (kw<by>? SortFields)? kw<desc | asc>?
+	(Offset | Limit | Rank | Partition)*
+}
+
+SplitPipe { pipeName<split> value sourceAndResult? }
+
+// the keyword may be left out
+StatsPipe {
+	pipeName<stats | stats_remote>? (kw<by>? ByFields)?
+	StatsEntry ("," StatsEntry)*
+}
+
+StreamContextPipe {
+	pipeName<stream_context> (kw<before | after> number)+
+	(kw<time_window> duration)?
+}
+
+TimeAddPipe { pipeName<time_add> duration (kw<at> fieldName)? }
+
+TopPipe {
+	pipeName<top> number? kw<by>? (someNames | fieldNames)
+	(kw<hits> kw<as>? fieldName | Rank)*
+}
+
+UnionPipe { pipeName<union> (Rows | Subquery) }
+
+UniqPipe {
+	pipeName<uniq> kw<by>? (someNames | fieldNames) (kw<filter> value)?
+	(kw<with>? kw<hits>)? Limit?
+}
+
+UnpackJsonPipe {
+	pipeName<unpack_json> ifClause<if>? (kw<from>? fieldName)?
+	(kw<fields> FieldList)? (kw<preserve_keys> NameList)?
+	(kw<result_prefix> value)? keepOrSkip?
+}
+
+UnpackLogfmtPipe {
+	pipeName<unpack_logfmt> ifClause<if>? (kw<from>? fieldName)?
+	(kw<fields> FieldList)? (kw<result_prefix> value)? keepOrSkip?
+}
+
+UnpackSyslogPipe {
+	pipeName<unpack_syslog> ifClause<if>? (kw<from>? fieldName)?
+	(kw<offset> duration)? (kw<result_prefix> value)?
+	kw<keep_original_fields>?
+}
+
+UnpackWordsPipe {
+	pipeName<unpack_words> sourceAndResult? kw<drop_duplicates>?
+}
+
+UnrollPipe { pipeName<unroll> ifClause<if>? kw<by>? (someNames | fieldNames) }
+
+// ---------------------------------------------------------------------
+// Parts that pipes share
+// ---------------------------------------------------------------------
+
+ifClause<keyword> { IfClause { kw<keyword> "(" (filterExpr ";"?)? ")" } }
+
+Limit { kw<limit> number }
+
+Offset { kw<offset> number }
+
+Rank { kw<rank> resultName? }
+
+Partition { kw<partition> kw<by>? NameList }
+
+// an optional result name. An as must be followed by the name.
+resultName { kw<as>? fieldName }
+
+// the source field and the result field of split, unpack_words and
+// json_array_concat. A name without a keyword is the source field.
+sourceAndResult { kw<from>? fieldName resultName? | kw<as> fieldName }
+
+keyedSourceAndResult { kw<from> fieldName resultName? | kw<as> fieldName }
+
+fieldNameMaybeParens { fieldName | "(" fieldName ")" }
+
+fieldName { FieldName { text<bareValue> } }
+
+fieldPattern { FieldName { "*" | text<bareValue> prefixStar? } }
+
+fieldPatterns { fieldPattern ("," fieldPattern)* }
+
+fieldNames { fieldName ("," fieldName)* }
+
+FieldList { "(" listOf<fieldPattern>? ")" }
+
+// a list of field names, which takes no wildcard
+NameList[@name=FieldList] { "(" listOf<fieldName>? ")" }
+
+// a list of fields whose length VictoriaLogs checks
+fieldList<content> { FieldList { "(" content ")" } }
+
+// one name or more
+someNames { fieldList<listOf<fieldName>> }
+
+// one item or more, with commas between them and an optional one after
+listOf<item> { item ("," item)* ","? }
+
+// the pairs of copy and rename
+fieldMappings { FieldMapping ("," FieldMapping)* }
+
+FieldMapping { fieldPattern kw<as>? fieldPattern }
+
+SortFields { "(" listOf<SortField>? ")" }
+
+SortField { fieldName kw<desc | asc>? }
+
+ByFields { "(" listOf<ByField>? ")" }
+
+ByField {
+	FieldName { text<bareWord> }
+	(
+		opColon
+		BucketSize { bareNumber | text<bareValue> | DynamicDurationPlaceholder }
+		(kw<offset> value)?
+	)?
+}
+
+Rows { kw<rows> "(" (Row ","?)* ")" }
+
+Row { "{" (RowField ","?)* "}" }
+
+RowField { FieldName { text<bareWord> } (opColon | "=") value }
+
+// ---------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------
+
+StatsEntry { StatsFunction (Switch | ifClause<if>? resultName?) }
+
+StatsFunction {
+	fn<
+		avg | count | count_empty | max | median | min | rate_sum | row_any |
+		stddev | sum | sum_len
+	> FieldList |
+	fn<uniq_values | values> FieldList Limit? |
+	fn<json_values> FieldList (kw<sort | order> kw<by>? SortFields)? Limit? |
+	// the first argument of quantile is the quantile itself
+	fn<quantile> fieldList<number ("," fieldPattern)* ","?> |
+	// the first argument of these two is one field
+	fn<row_max | row_min> fieldList<fieldName ("," fieldPattern)* ","?> |
+	// these take no wildcard: one field, two fields, none, and one or
+	// more
+	fn<any | histogram> fieldList<fieldName ","?> |
+	fn<field_max | field_min> fieldList<fieldName "," fieldName ","?> |
+	fn<rate> fieldList<nothing> |
+	fn<count_uniq | count_uniq_hash> someNames Limit?
+}
+
+Switch { kw<switch> "(" listOf<SwitchCase> ")" }
+
+SwitchCase { (ifClause<if | case> | kw<default>) kw<as>? fieldName }
+
+// ---------------------------------------------------------------------
+// Math
+// ---------------------------------------------------------------------
+
+MathEntry { mathExpr resultName? }
+
+mathExpr { MathBinary | mathOperand }
+
+MathBinary {
+	mathExpr !power "^" mathExpr |
+	mathExpr !times ("*" | opSlash | "%") mathExpr |
+	mathExpr !plus (opPlus | opMinus) mathExpr |
+	mathExpr !bitAnd "&" mathExpr |
+	mathExpr !bitXor operator<xor> mathExpr |
+	mathExpr !bitOr operator<or> mathExpr |
+	mathExpr !orDefault operator<default> mathExpr
+}
+
+mathOperand {
+	MathParens { "(" mathExpr ")" } |
+	MathFunction |
+	MathUnary { (opMinus | opPlus) mathOperand } |
+	Number { mathNumber } |
+	FieldName { mathWord | String } |
+	VariableReference
+}
+
+// by the number of arguments the function takes: one, two or more,
+// none, and one or two
+MathFunction {
+	fn<abs | ceil | exp | floor | ln> "(" mathExpr ","? ")" |
+	fn<max | min> "(" mathExpr ("," mathExpr)+ ","? ")" |
+	fn<now | rand> "(" ")" |
+	fn<round> "(" mathExpr ("," mathExpr)? ","? ")"
+}
+
+// ---------------------------------------------------------------------
+// Words and values
+// ---------------------------------------------------------------------
+
+// a word, a quoted string, or a variable that stands for either.
+//
+// After top, a quoted token or a variable can be the count or the first
+// field: "top $n by (ip)" and "top $field". The ~countOrField marker lets
+// the parser follow both readings until one of them fails.
+text<word> { word | String ~countOrField | VariableReference ~countOrField }
+
+value { Value { text<bareValue> } }
+
+// VictoriaLogs reads a number, a duration or a time from a quoted token
+// too, so each of them may be a string
+number {
+	Number { bareNumber | String ~countOrField } |
+	VariableReference ~countOrField
+}
+
+duration {
+	Duration { bareNumber | String } |
+	VariableReference |
+	DynamicDurationPlaceholder
+}
+
+time {
+	Time { bareNumber | bareValue | String } |
+	VariableReference |
+	DynamicDurationPlaceholder
+}
+
+// the names that mark a keyword by what it does
+kw<term> { Keyword { term } }
+
+pipeName<term> { PipeName { term } }
+
+fn<term> { FunctionName { term } }
+
+logic<term> { LogicOperator { term } }
+
+operator<term> { OperatorKeyword { term } }
+
+field<term> { FieldName { term } }
+
+// ---------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------
+
+@skip { whitespace | LineComment }
+
+// The tokenizer in tokens.ts reads every word, and the few characters
+// whose meaning depends on what the parser expects. It runs before the
+// plain tokens below.
+//
+// A keyword has the name of its text. Every other name here holds an
+// uppercase letter, which is how tokens.ts tells the two apart.
+@external tokens contextual from "./tokens.ts" {
+	// a word that stops at a colon. It names a field or is a search phrase.
+	bareWord,
+	// a word that may hold colons
+	bareValue,
+	// a bareValue that starts like a number
+	bareNumber,
+	// the same two inside a math expression. They stop at + - and /.
+	mathWord,
+	mathNumber,
+	// a word that is only a variable, such as $env. A tool fills it in
+	// before the query runs, so it can stand for a word, a number or a
+	// duration.
+	VariableReference,
+	// a word that is only a duration placeholder, such as $__interval. It
+	// is taken where a duration goes, and is a plain word anywhere else.
+	DynamicDurationPlaceholder,
+	// the star right after a word (err*) and the star right before one
+	// (*err*)
+	prefixStar,
+	substringStar,
+	opColon[@name=":"],
+	opMinus[@name="-"],
+	opPlus[@name="+"],
+	opSlash[@name="/"],
+	// empty tokens. filterStart is where a filter may start, and
+	// filterPipeStart where a filter pipe without its keyword does.
+	// subqueryStart precedes a ( that opens a query and not a list of
+	// values. noSpace is an operator that touches its value.
+	filterStart,
+	filterPipeStart,
+	subqueryStart,
+	noSpace,
+
+	_stream_id,
+	_time,
+	abs,
+	after,
+	allow_partial_response,
+	and,
+	any,
+	as,
+	asc,
+	at,
+	avg,
+	before,
+	block_stats,
+	blocks_count,
+	by,
+	case,
+	ceil,
+	coalesce,
+	collapse_nums,
+	concurrency,
+	contains_all,
+	contains_any,
+	contains_common_case,
+	copy,
+	count,
+	count_empty,
+	count_uniq,
+	count_uniq_hash,
+	cp,
+	day_range,
+	decolorize,
+	default,
+	del,
+	delete,
+	desc,
+	drop,
+	drop_duplicates,
+	drop_empty_fields,
+	eq_field,
+	equals_common_case,
+	eval,
+	exact,
+	exp,
+	extract,
+	extract_regexp,
+	facets,
+	field_max,
+	field_min,
+	field_names,
+	field_values,
+	fields,
+	filter,
+	first,
+	floor,
+	format,
+	from,
+	generate_sequence,
+	global_filter,
+	hash,
+	head,
+	histogram,
+	hits,
+	i,
+	if,
+	ignore_global_time_filter,
+	in,
+	inner,
+	ipv4_range,
+	ipv6_range,
+	join,
+	json_array_concat,
+	json_array_contains_any,
+	json_array_len,
+	json_values,
+	keep,
+	keep_const_fields,
+	keep_original_fields,
+	last,
+	le_field,
+	len,
+	len_range,
+	limit,
+	ln,
+	lt_field,
+	math,
+	max,
+	max_value_len,
+	max_values_per_field,
+	median,
+	min,
+	mv,
+	not,
+	not_in,
+	now,
+	offset,
+	on,
+	options,
+	or,
+	order,
+	pack_json,
+	pack_logfmt,
+	parallel_readers,
+	partition,
+	pattern_match,
+	pattern_match_full,
+	pattern_match_prefix,
+	pattern_match_suffix,
+	prefix,
+	preserve_keys,
+	prettify,
+	quantile,
+	query_stats,
+	rand,
+	range,
+	rank,
+	rate,
+	rate_sum,
+	re,
+	rename,
+	replace,
+	replace_regexp,
+	result_prefix,
+	rm,
+	round,
+	row_any,
+	row_max,
+	row_min,
+	rows,
+	running_stats,
+	sample,
+	seq,
+	set_stream_fields,
+	skip,
+	skip_empty_results,
+	sort,
+	split,
+	stats,
+	stats_remote,
+	stddev,
+	stream_context,
+	string_range,
+	sum,
+	sum_len,
+	switch,
+	time_add,
+	time_offset,
+	time_window,
+	top,
+	total_stats,
+	union,
+	uniq,
+	uniq_values,
+	unpack_json,
+	unpack_logfmt,
+	unpack_syslog,
+	unpack_words,
+	unroll,
+	value_type,
+	values,
+	week_range,
+	where,
+	with,
+	xor
+}
+
+@tokens {
+	whitespace { @whitespace+ }
+
+	LineComment { "#" ![\n]* }
+
+	// a quoted token. VictoriaLogs reads double quotes and backticks as Go
+	// does. Single quotes take the same escapes as double quotes, but a
+	// line break may stand in them unescaped. A quote can be escaped only
+	// inside its own kind of quotes.
+	String {
+		'"' (![\\\n"] | "\\" (escape | '"'))* '"' |
+		"`" ![`]* "`" |
+		"'" (![\\'] | "\\" (escape | "'"))* "'"
+	}
+
+	// the escapes Go accepts in a quoted string, apart from the quote. An
+	// octal escape is at most 377, so it fits in a byte.
+	escape {
+		$[abfnrtv\\] |
+		"x" hex hex |
+		"u" hex hex hex hex |
+		"U" hex hex hex hex hex hex hex hex |
+		$[0-3] $[0-7] $[0-7]
+	}
+
+	hex { $[0-9a-fA-F] }
+
+	"(" ")" "[" "]" "{" "}"
+	"," ";" "|"
+	"=" "!=" "=~" "!~" "~" "!"
+	"<" ">" "<=" ">="
+	"*" "^" "%" "&"
+}
+
+@external propSource logsqlHighlighting from "./highlight.ts"
+
+@detectDelim

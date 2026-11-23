@@ -1,0 +1,71 @@
+# a stream filter
+
+{app="nginx"}
+
+==>
+
+Query(StreamFilter(StreamMatcher(FieldName,Value(String))))
+
+# the _stream field
+
+_stream:{app="nginx", env!="dev"}
+
+==>
+
+Query(FieldFilter(FieldName,StreamFilter(StreamMatcher(FieldName,Value(String)),StreamMatcher(FieldName,Value(String)))))
+
+# regular expressions in a stream filter
+
+{app=~"api-.*", host!~"test"}
+
+==>
+
+Query(StreamFilter(StreamMatcher(FieldName,Value(String)),StreamMatcher(FieldName,Value(String))))
+
+# or inside a stream filter
+
+{app="a" or app="b", env="prod"}
+
+==>
+
+Query(StreamFilter(StreamMatcher(FieldName,Value(String)),LogicOperator,StreamMatcher(FieldName,Value(String)),StreamMatcher(FieldName,Value(String))))
+
+# lists in a stream filter
+
+{app in (nginx, envoy), env not_in (dev)}
+
+==>
+
+Query(StreamFilter(StreamMatcher(FieldName,Keyword,ArgList(Value,Value)),StreamMatcher(FieldName,Keyword,ArgList(Value))))
+
+# an empty stream filter
+
+{}
+
+==>
+
+Query(StreamFilter)
+
+# a stream ID
+
+_stream_id:0000007b000001c8302bc96e02e54e5524b3a68ec271e55e
+
+==>
+
+Query(StreamIdFilter(FieldName,Value))
+
+# a list of stream IDs
+
+_stream_id:in(0000007b000001c8302bc96e02e54e5524b3a68ec271e55e)
+
+==>
+
+Query(StreamIdFilter(FieldName,FunctionName,ArgList(Value)))
+
+# stream IDs given by a query
+
+_stream_id:in(_time:5m error | fields _stream_id)
+
+==>
+
+Query(StreamIdFilter(FieldName,FunctionName,Subquery(AndFilter(TimeFilter(FieldName,Time),Phrase),FieldsPipe(PipeName,FieldName))))
