@@ -10,6 +10,9 @@ checked against the answers of a real VictoriaLogs on thousands of
 queries. It reads LogsQL as the VictoriaLogs release named in
 [`upstream/VERSION`](upstream/VERSION) does.
 
+[Oxynote](https://github.com/oxynote/oxynote) uses it in the query editor
+of its live logs.
+
 ## Installation
 
 ```sh
